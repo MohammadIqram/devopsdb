@@ -1,9 +1,8 @@
 import express from 'express';
-import { getUsers, inviteUser, updateUserRole, toggleUserStatus, deleteUser, getUserAuditLogs } from '../controllers/user.controller.js';
+import { inviteUser, updateUserRole, toggleUserStatus, deleteUser, getUserAuditLogs } from '../controllers/user.controller.js';
 
 const router = express.Router();
 
-router.get('/', getUsers);
 router.post('/invite', inviteUser);
 router.patch('/:id/role', updateUserRole);
 router.patch('/:id/status', toggleUserStatus);

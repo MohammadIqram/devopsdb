@@ -1,34 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { GitBranch, Link as LinkIcon, Lock, PlusCircle, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { axiosInstance } from '@/lib/axios';
+import { useRepoStore } from '@/lib/store';
 
 export default function WebhookManager() {
-    const [repos, setRepos] = useState([]);
-    const [selectedRepo, setSelectedRepo] = useState('');
+    const { repos, selectedRepo, setSelectedRepo } = useRepoStore();
     const [webhookUrl, setWebhookUrl] = useState('');
     const [secret, setSecret] = useState('');
 
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState({ type: '', message: '' });
-
-    // Fetch available repos on load
-    useEffect(() => {
-        async function fetchRepos() {
-            try {
-                const res = await axiosInstance("/repo");
-                const data = res.data;
-                if (Array.isArray(data) && data.length > 0) {
-                    setRepos(data);
-                    setSelectedRepo(data[0].name);
-                }
-            } catch (err) {
-                console.error('Failed to load repositories', err);
-            }
-        }
-        fetchRepos();
-    }, []);
 
     const handleSubmit = async (e: any) => {
         e.preventDefault();
@@ -43,7 +26,7 @@ export default function WebhookManager() {
                 webhookUrl,
                 secret,
             }
-            const res = await axiosInstance("/webhooks/add", payload);
+            const res = await axiosInstance.post("/webhooks/add", payload);
             const data = res.data;
 
             if (res.status === 200) {

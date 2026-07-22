@@ -1,5 +1,6 @@
 import express from 'express';
-import { listJobs, listDeployment, deploy, getRepos } from "../controllers/repo.controller.js";
+import { listJobs, listDeployment, deploy, getRepos, removeContributor } from "../controllers/repo.controller.js";
+import { getRepoContributors } from '../controllers/user.controller.js';
 
 const router = express.Router();
 
@@ -7,5 +8,7 @@ router.get("/logs/:id", listJobs);
 router.get("/deployments", listDeployment);
 router.post("/deploy", deploy);
 router.get("/", getRepos);
+router.get("/contributors", getRepoContributors);
+router.delete('/contributors', removeContributor);
 
 export default router;

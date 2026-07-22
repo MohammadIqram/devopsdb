@@ -1,10 +1,43 @@
-export const getUsers = async (req, res) => {
-    // 1. Get all team users
-    res.json([
-        { id: 'usr_1', name: 'Alex Rivera', email: 'alex@devops.io', role: 'DevOps Lead', status: 'Active', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex' },
-        { id: 'usr_2', name: 'Sam Chen', email: 'sam@devops.io', role: 'Backend Dev', status: 'Active', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sam' },
-        { id: 'usr_3', name: 'Jordan Lee', email: 'jordan@devops.io', role: 'SRE Specialist', status: 'Pending', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jordan' },
-    ]);
+import { octokit, GITHUB_OWNER } from '../lib/github.js';
+
+export const getRepoContributors = async (req, res) => {
+    try {
+        const { repo } = req.query;
+
+        if (!repo) {
+            return res.status(400).json({ error: 'Repository name is required' });
+        }
+
+        const repoName = repo.includes('/') ? repo.split('/')[1] : repo;
+        const owner = repo.includes('/') ? repo.split('/')[0] : GITHUB_OWNER;
+        const response = await octokit.rest.repos.listContributors({
+            owner,
+            repo: repoName,
+            per_page: 30,
+        });
+
+        const contributors = response.data.map((user) => ({
+            id: user.id,
+            username: user.login,
+            avatar: user.avatar_url,
+            contributions: user.contributions,
+            profileUrl: user.html_url,
+            type: user.type,
+        }));
+
+        return res.status(200).json(contributors);
+    } catch (error) {
+        console.error('Error fetching GitHub contributors via Octokit:', error.message);
+
+        if (error.status === 404) {
+            return res.status(404).json({ error: 'Repository not found on GitHub' });
+        }
+
+        return res.status(500).json({
+            error: 'Failed to retrieve repository contributors',
+            details: error.message,
+        });
+    }
 };
 
 export const inviteUser = async (req, res) => {

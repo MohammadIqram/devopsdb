@@ -84,10 +84,26 @@ export const deploy = async (req, res) => {
 
 export const getRepos = async (req, res) => {
     try {
-        const { data } = await octokit.rest.repos.listForAuthenticatedUser({
-            sort: 'updated',
-            per_page: 50,
-        });
+        let data;
+        try {
+            const response = await octokit.rest.repos.listForAuthenticatedUser({
+                sort: 'updated',
+                per_page: 50,
+            });
+            data = response.data;
+        } catch (authError) {
+            console.warn('listForAuthenticatedUser failed, trying listForUser as fallback:', authError.message);
+            if (OWNER) {
+                const response = await octokit.rest.repos.listForUser({
+                    username: OWNER,
+                    sort: 'updated',
+                    per_page: 50,
+                });
+                data = response.data;
+            } else {
+                throw authError;
+            }
+        }
 
         const repos = data.map((r) => ({
             id: r.id,
@@ -97,6 +113,44 @@ export const getRepos = async (req, res) => {
 
         res.json(repos);
     } catch (error) {
+        console.error('Failed to get repositories:', error.message);
         res.status(500).json({ error: error.message });
+    }
+};
+
+export const removeContributor = async (req, res) => {
+    try {
+        const { repo, username } = req.body;
+
+        if (!repo || !username) {
+            return res.status(400).json({
+                error: 'Both repository name and username are required.'
+            });
+        }
+
+        const repoName = repo.includes('/') ? repo.split('/')[1] : repo;
+        const owner = repo.includes('/') ? repo.split('/')[0] : GITHUB_OWNER;
+
+        // Remove user/collaborator from the repository
+        await octokit.rest.repos.removeCollaborator({
+            owner,
+            repo: repoName,
+            username,
+        });
+
+        return res.status(200).json({
+            message: `User ${username} successfully removed from ${repoName}`
+        });
+    } catch (error) {
+        console.error('Error removing contributor via Octokit:', error.message);
+
+        if (error.status === 404) {
+            return res.status(404).json({ error: 'Repository or user not found on GitHub' });
+        }
+
+        return res.status(500).json({
+            error: 'Failed to remove contributor from repository',
+            details: error.message,
+        });
     }
 };
