@@ -154,3 +154,75 @@ export const removeContributor = async (req, res) => {
         });
     }
 };
+
+export const searchUsers = async (req, res) => {
+    try {
+        const { q } = req.query;
+
+        if (!q || q.trim().length < 2) {
+            return res.status(200).json([]);
+        }
+
+        // Octokit search query to check usernames, emails, and full names
+        const response = await octokit.rest.search.users({
+            q: `${q.trim()} in:login in:name in:email type:user`,
+            per_page: 8,
+        });
+
+        const users = response.data.items.map((user) => ({
+            id: user.id,
+            username: user.login,
+            avatar: user.avatar_url,
+            profileUrl: user.html_url,
+        }));
+
+        return res.status(200).json(users);
+    } catch (error) {
+        console.error('Error searching GitHub users:', error.message);
+        return res.status(500).json({
+            error: 'Failed to search users on GitHub',
+            details: error.message,
+        });
+    }
+};
+
+// 2. Add collaborator to repository
+export const addCollaborator = async (req, res) => {
+    try {
+        const { repo, username, permission = 'push' } = req.body;
+        // permission can be 'pull' (read), 'push' (write), or 'admin'
+
+        if (!repo || !username) {
+            return res.status(400).json({
+                error: 'Both repo and username are required',
+            });
+        }
+
+        const repoName = repo.includes('/') ? repo.split('/')[1] : repo;
+        const owner = repo.includes('/') ? repo.split('/')[0] : OWNER;
+
+        // Send invitation to user
+        const response = await octokit.rest.repos.addCollaborator({
+            owner,
+            repo: repoName,
+            username,
+            permission,
+        });
+
+        return res.status(200).json({
+            message: `Invitation successfully sent to ${username}!`,
+            inviteUrl: response.data?.html_url || null,
+        });
+    } catch (error) {
+        console.error('Error adding collaborator:', error.message);
+
+        if (error.status === 404) {
+            return res.status(404).json({ error: 'Repository or User not found' });
+        }
+
+        return res.status(500).json({
+            error: 'Failed to add collaborator to repository',
+            details: error.message,
+        });
+    }
+};

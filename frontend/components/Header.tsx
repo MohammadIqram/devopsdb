@@ -15,12 +15,13 @@ export default function Header() {
     { label: 'Dashboard', path: '/', icon: Home },
     { label: 'Webhooks', path: '/webhook-manager', icon: LinkIcon },
     { label: 'Contributors', path: '/contributers', icon: Users },
+    { label: 'Add Contributors', path: '/contributers/add', icon: Users },
   ];
 
   return (
     <header className={`border-b ${theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'} transition-colors duration-200`}>
       <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
-        
+
         {/* Title and Branding */}
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => router.push('/')}>
           <ShieldCheck className="w-8 h-8 text-indigo-600 dark:text-indigo-400 animate-pulse" />
@@ -43,11 +44,10 @@ export default function Header() {
                 <button
                   key={item.path}
                   onClick={() => router.push(item.path)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition cursor-pointer ${
-                    isActive
-                      ? (theme === 'dark' ? 'bg-slate-800 text-white' : 'bg-white text-indigo-600 shadow-sm')
-                      : (theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-950')
-                  }`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition cursor-pointer ${isActive
+                    ? (theme === 'dark' ? 'bg-slate-800 text-white' : 'bg-white text-indigo-600 shadow-sm')
+                    : (theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-950')
+                    }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
                   {item.label}
@@ -57,20 +57,18 @@ export default function Header() {
           </nav>
 
           {/* Repo Selector */}
-          <div className={`flex items-center gap-2 border px-3 py-1.5 rounded-lg text-xs font-medium ${
-            theme === 'dark' ? 'bg-slate-950 border-slate-700' : 'bg-slate-50 border-slate-300'
-          }`}>
-            <GitBranch className="w-3.5 h-3.5 text-indigo-500" />
+          <div className="relative flex items-center min-w-[200px]">
+            <GitBranch className="absolute left-3 w-3.5 h-3.5 text-indigo-500 pointer-events-none z-10" />
             <select
               value={selectedRepo}
               onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedRepo(e.target.value)}
-              className="bg-transparent focus:outline-none cursor-pointer text-xs"
               disabled={loading}
+              className="w-full pl-8 pr-8 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer disabled:opacity-50 appearance-none"
             >
               {loading && <option>Loading...</option>}
               {!loading && repos.length === 0 && <option>No repositories</option>}
               {repos.map((r) => (
-                <option key={r.id} value={r.name} className={theme === 'dark' ? 'bg-slate-900' : 'bg-white'}>
+                <option key={r.id} value={r.name} className="bg-white dark:bg-slate-900">
                   {r.name}
                 </option>
               ))}
@@ -80,9 +78,8 @@ export default function Header() {
           {/* Light/Dark Toggle */}
           <button
             onClick={toggleTheme}
-            className={`p-2 rounded-lg border transition cursor-pointer ${
-              theme === 'dark' ? 'bg-slate-950 border-slate-700 text-amber-400 hover:bg-slate-800' : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100 shadow-sm'
-            }`}
+            className={`p-2 rounded-lg border transition cursor-pointer ${theme === 'dark' ? 'bg-slate-950 border-slate-700 text-amber-400 hover:bg-slate-800' : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100 shadow-sm'
+              }`}
             title="Toggle theme"
           >
             {theme === 'light' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
