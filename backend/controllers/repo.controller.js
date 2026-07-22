@@ -1,3 +1,4 @@
+import { octokit, GITHUB_OWNER as OWNER } from "../lib/github.js";
 
 export const listJobs = async (req, res) => {
     const { repo } = req.query;

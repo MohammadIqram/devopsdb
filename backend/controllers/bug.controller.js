@@ -1,3 +1,4 @@
+import { octokit } from "../lib/github";
 
 export const getBugs = async (req, res) => {
     const { repo } = req.query;

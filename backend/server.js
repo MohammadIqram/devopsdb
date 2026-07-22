@@ -1,14 +1,19 @@
 // backend/server.js
-const express = require('express');
-const { Octokit } = require('@octokit/rest');
-const { WebSocketServer } = require('ws');
-const http = require('http');
-const cors = require('cors');
-require('dotenv').config();
+import express from "express";
+import { octokit } from "./lib/github.js";
+import { WebSocketServer } from 'ws';
+import http from "http";
+import cors from "cors";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
+
+// import configs
+import { GITHUB_OWNER } from "./lib/github.js";
 
 // import routes
 import repoRoutes from "./routes/repo.routes.js";
@@ -17,18 +22,15 @@ import profileRoutes from "./routes/profile.routes.js";
 import settingsRoutes from "./routes/settings.routes.js";
 import userRoutes from "./routes/user.routes.js";
 
+app.use(cors({ origin: 'http://localhost:3000', credentials: true, }));
+app.use(express.json());
+
 // use routes
 app.use("/api/repo", repoRoutes);
 app.use("/api/bug", bugRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/user", userRoutes);
-
-app.use(cors({ origin: 'http://localhost:3000' }));
-app.use(express.json());
-
-const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
-const OWNER = process.env.GITHUB_OWNER; // Your org or username
 
 function broadcast(data) {
     wss.clients.forEach((client) => {
@@ -45,8 +47,6 @@ function verifySignature(req) {
     const digest = `sha256=${hmac.update(req.rawBody).digest('hex')}`;
     return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
 }
-
-const GITHUB_OWNER = process.env.GITHUB_OWNER;
 
 // Endpoint to add a webhook to a selected repo
 app.post('/api/webhooks/add', async (req, res) => {

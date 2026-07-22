@@ -6,6 +6,6 @@ const router = express.Router();
 router.get("/logs/:id", listJobs);
 router.get("/deployments", listDeployment);
 router.post("/deploy", deploy);
-router.get("/repos", getRepos);
+router.get("/", getRepos);
 
 export default router;

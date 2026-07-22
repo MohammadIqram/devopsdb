@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ChangeEvent } from 'react';
 import {
   Play,
   AlertOctagon,
@@ -13,13 +13,62 @@ import {
   Terminal,
   X,
   ShieldCheck,
-  ExternalLink
+  ExternalLink,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { axiosInstance } from '@/lib/axios';
 
-const BACKEND_URL = 'http://localhost:4000/api';
+// ==========================================
+// TYPES & INTERFACES
+// ==========================================
 
-const navItems = [
+export type ThemeMode = 'light' | 'dark';
+export type Environment = 'staging' | 'production';
+
+export interface Repository {
+  id: string | number;
+  name: string;
+}
+
+export interface Deployment {
+  id: string | number;
+  name: string;
+  status: 'in_progress' | 'completed' | 'queued' | string;
+  conclusion?: 'success' | 'failure' | 'cancelled' | string;
+  branch: string;
+  commit: string;
+  url: string;
+}
+
+export interface Bug {
+  id: string | number;
+  number: number;
+  title: string;
+  author: string;
+  url: string;
+}
+
+export interface ActiveLog {
+  id: string | number;
+  name: string;
+  content: string;
+}
+
+export interface NavItem {
+  label: string;
+  path: string;
+}
+
+export interface WebSocketEvent {
+  type: string;
+  repo: string;
+}
+
+// ==========================================
+// CONSTANTS
+// ==========================================
+
+const navItems: NavItem[] = [
   { label: 'Webhooks', path: '/webhook-manager' },
   { label: 'Deployment Manager', path: '/deployment-manager' },
   { label: 'Bug Tracker', path: '/bug-tracker' },
@@ -29,27 +78,32 @@ const navItems = [
 ];
 
 export default function DevOpsDashboard() {
-  const [theme, setTheme] = useState('light'); // Default to light theme
-  const [repos, setRepos] = useState([]);
-  const [selectedRepo, setSelectedRepo] = useState('');
-  const [selectedBranch, setSelectedBranch] = useState('main');
-  const [deployments, setDeployments] = useState([]);
-  const [bugs, setBugs] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [deploying, setDeploying] = useState(false);
+  // Theme state
+  const [theme, setTheme] = useState<ThemeMode>('light');
 
-  // Modal / Terminal Log State
-  const [activeLog, setActiveLog] = useState(null);
-  const [logLoading, setLogLoading] = useState(false);
+  // Core data states
+  const [repos, setRepos] = useState<Repository[]>([]);
+  const [selectedRepo, setSelectedRepo] = useState<string>('');
+  const [selectedBranch, setSelectedBranch] = useState<string>('main');
+  const [deployments, setDeployments] = useState<Deployment[]>([]);
+  const [bugs, setBugs] = useState<Bug[]>([]);
+
+  // Loader states
+  const [loading, setLoading] = useState<boolean>(false);
+  const [deploying, setDeploying] = useState<boolean>(false);
+
+  // Terminal modal state
+  const [activeLog, setActiveLog] = useState<ActiveLog | null>(null);
+  const [logLoading, setLogLoading] = useState<boolean>(false);
 
   const router = useRouter();
 
-  // 1. Load repos on startup
+  // 1. Fetch repositories on startup
   useEffect(() => {
-    async function loadRepos() {
+    async function loadRepos(): Promise<void> {
       try {
-        const res = await fetch(`${BACKEND_URL}/repos`);
-        const data = await res.json();
+        const { data } = await axiosInstance.get<Repository[]>('/repo');
+
         if (Array.isArray(data)) {
           setRepos(data);
           if (data.length > 0) setSelectedRepo(data[0].name);
@@ -61,18 +115,23 @@ export default function DevOpsDashboard() {
     loadRepos();
   }, []);
 
-  // 2. Fetch dashboard metrics
-  const fetchData = async () => {
+  // 2. Fetch deployments and bugs metric
+  const fetchData = async (): Promise<void> => {
     if (!selectedRepo) return;
     setLoading(true);
+
     try {
       const [deployRes, bugRes] = await Promise.all([
-        fetch(`${BACKEND_URL}/deployments?repo=${selectedRepo}`),
-        fetch(`${BACKEND_URL}/bugs?repo=${selectedRepo}`),
+        axiosInstance.get<Deployment[]>('/repo/deployments', {
+          params: { repo: selectedRepo },
+        }),
+        axiosInstance.get<Bug[]>('/bug', {
+          params: { repo: selectedRepo },
+        }),
       ]);
 
-      setDeployments(await deployRes.json());
-      setBugs(await bugRes.json());
+      setDeployments(deployRes.data);
+      setBugs(bugRes.data);
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
     } finally {
@@ -83,12 +142,17 @@ export default function DevOpsDashboard() {
   useEffect(() => {
     fetchData();
 
-    // WebSocket for Real-Time Updates
+    // WebSocket connection for updates
     const ws = new WebSocket('ws://localhost:4000');
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'GITHUB_EVENT' && data.repo === selectedRepo) {
-        fetchData();
+
+    ws.onmessage = (event: MessageEvent) => {
+      try {
+        const data: WebSocketEvent = JSON.parse(event.data);
+        if (data.type === 'GITHUB_EVENT' && data.repo === selectedRepo) {
+          fetchData();
+        }
+      } catch (err) {
+        console.error('WebSocket parsing error:', err);
       }
     };
 
@@ -96,20 +160,18 @@ export default function DevOpsDashboard() {
   }, [selectedRepo]);
 
   // 3. Trigger Deployment
-  const triggerDeploy = async (env: any) => {
+  const triggerDeploy = async (env: Environment): Promise<void> => {
     if (!selectedRepo) return;
     setDeploying(true);
+
     try {
-      await fetch(`${BACKEND_URL}/deploy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          repo: selectedRepo,
-          environment: env,
-          ref: selectedBranch,
-          user: 'DevOps Lead'
-        }),
+      await axiosInstance.post('/deploy', {
+        repo: selectedRepo,
+        environment: env,
+        ref: selectedBranch,
+        user: 'DevOps Lead',
       });
+
       alert(`Deployment triggered for ${selectedRepo} (${env}) on ${selectedBranch}!`);
       setTimeout(fetchData, 2000);
     } catch (err) {
@@ -120,22 +182,34 @@ export default function DevOpsDashboard() {
   };
 
   // 4. Fetch Job Logs
-  const viewLogs = async (jobId: any, runName: any) => {
+  const viewLogs = async (jobId: string | number, runName: string): Promise<void> => {
     setLogLoading(true);
     setActiveLog({ id: jobId, name: runName, content: 'Fetching logs from GitHub...' });
+
     try {
-      const res = await fetch(`${BACKEND_URL}/logs/${jobId}?repo=${selectedRepo}`);
-      const text = await res.text();
-      setActiveLog({ id: jobId, name: runName, content: text || 'No log text returned.' });
+      const { data } = await axiosInstance.get<string>(`/logs/${jobId}`, {
+        params: { repo: selectedRepo },
+        responseType: 'text', // Ensures string response even if backend sends plain text
+      });
+
+      setActiveLog({
+        id: jobId,
+        name: runName,
+        content: data || 'No log text returned.',
+      });
     } catch (err) {
-      setActiveLog({ id: jobId, name: runName, content: 'Failed to retrieve logs.' });
+      setActiveLog({
+        id: jobId,
+        name: runName,
+        content: 'Failed to retrieve logs.',
+      });
     } finally {
       setLogLoading(false);
     }
   };
 
-  // Derive environment health status
-  const latestSuccess = deployments.find((d: any) => d.conclusion === 'success');
+  // Environment health status helper
+  const latestSuccess = deployments.find((d) => d.conclusion === 'success');
 
   return (
     <div className={theme === 'dark' ? 'bg-slate-950 text-slate-100 min-h-screen' : 'bg-slate-50 text-slate-800 min-h-screen'}>
@@ -159,10 +233,10 @@ export default function DevOpsDashboard() {
               <GitBranch className="w-4 h-4 text-indigo-500" />
               <select
                 value={selectedRepo}
-                onChange={(e) => setSelectedRepo(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedRepo(e.target.value)}
                 className="bg-transparent focus:outline-none cursor-pointer"
               >
-                {repos.map((r: any) => (
+                {repos.map((r) => (
                   <option key={r.id} value={r.name} className={theme === 'dark' ? 'bg-slate-900' : 'bg-white'}>
                     {r.name}
                   </option>
@@ -188,7 +262,7 @@ export default function DevOpsDashboard() {
           </div>
         </header>
 
-        {/* NAVIGATION BAR   */}
+        {/* NAVIGATION BAR */}
         <div className="flex flex-wrap gap-3 py-4">
           {navItems.map((item) => (
             <button
@@ -219,7 +293,7 @@ export default function DevOpsDashboard() {
               <p className="text-base font-semibold mt-0.5">{deployments[0]?.branch || 'main'}</p>
             </div>
             <span className="text-xs font-mono text-slate-500">
-              {latestSuccess ? `Commit: ${latestSuccess?.commit?.substring(0, 7)}` : 'No runs'}
+              {latestSuccess ? `Commit: ${latestSuccess.commit.substring(0, 7)}` : 'No runs'}
             </span>
           </div>
 
@@ -275,7 +349,7 @@ export default function DevOpsDashboard() {
                 {deployments.length === 0 ? (
                   <p className={`text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>No recent workflow runs found.</p>
                 ) : (
-                  deployments.map((run: any) => (
+                  deployments.map((run) => (
                     <div
                       key={run.id}
                       className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-lg border gap-3 ${theme === 'dark' ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}
@@ -331,7 +405,7 @@ export default function DevOpsDashboard() {
                 <p className={`text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>No open critical issues reported.</p>
               ) : (
                 <div className="space-y-3">
-                  {bugs.map((bug: any) => (
+                  {bugs.map((bug) => (
                     <div key={bug.id} className="p-3 bg-rose-50 border border-rose-200 dark:bg-rose-950/30 dark:border-rose-900/50 rounded-lg">
                       <a
                         href={bug.url}

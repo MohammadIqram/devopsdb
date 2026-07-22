@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { GitBranch, Link as LinkIcon, Lock, PlusCircle, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
-
-const BACKEND_URL = 'http://localhost:4000';
+import { axiosInstance } from '@/lib/axios';
 
 export default function WebhookManager() {
     const [repos, setRepos] = useState([]);
@@ -18,8 +17,8 @@ export default function WebhookManager() {
     useEffect(() => {
         async function fetchRepos() {
             try {
-                const res = await fetch(`${BACKEND_URL}/repos`);
-                const data = await res.json();
+                const res = await axiosInstance("/repo");
+                const data = res.data;
                 if (Array.isArray(data) && data.length > 0) {
                     setRepos(data);
                     setSelectedRepo(data[0].name);
@@ -39,24 +38,20 @@ export default function WebhookManager() {
         setStatus({ type: '', message: '' });
 
         try {
-            const res = await fetch(`${BACKEND_URL}/webhooks/add`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    repo: selectedRepo,
-                    webhookUrl,
-                    secret,
-                }),
-            });
+            const payload = {
+                repo: selectedRepo,
+                webhookUrl,
+                secret,
+            }
+            const res = await axiosInstance("/webhooks/add", payload);
+            const data = res.data;
 
-            const data = await res.json();
-
-            if (res.ok) {
+            if (res.status === 200) {
                 setStatus({ type: 'success', message: data.message });
                 setWebhookUrl('');
                 setSecret('');
             } else {
-                setStatus({ type: 'error', message: data.error });
+                setStatus({ type: 'error', message: data.message });
             }
         } catch (err) {
             setStatus({ type: 'error', message: 'Network error. Could not connect to backend server.' });

@@ -1,5 +1,5 @@
 import express from 'express';
-import { getBugs, createBug, updateBugStatus } from '../controllers/bugController.js';
+import { getBugs, createBug, updateBugStatus } from '../controllers/bug.controller.js';
 
 const router = express.Router();
 
