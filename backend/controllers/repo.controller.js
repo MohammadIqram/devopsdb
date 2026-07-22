@@ -129,7 +129,7 @@ export const removeContributor = async (req, res) => {
         }
 
         const repoName = repo.includes('/') ? repo.split('/')[1] : repo;
-        const owner = repo.includes('/') ? repo.split('/')[0] : GITHUB_OWNER;
+        const owner = repo.includes('/') ? repo.split('/')[0] : OWNER;
 
         // Remove user/collaborator from the repository
         await octokit.rest.repos.removeCollaborator({
