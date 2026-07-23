@@ -461,19 +461,334 @@ export const downloadFile = async (req, res) => {
     }
 
     try {
-        const repoPath = path.join(process.env.REPOS_ROOT_DIR || '/tmp/repos', repo);
-        const git = simpleGit(repoPath);
+        const owner = OWNER;
+        const repoName = repo;
 
-        // Get raw file buffer directly from git tree without needing to checkout the branch
-        const fileBuffer = await git.binaryCatFile([`${branch}:${filePath}`]);
+        const cleanFilePath = filePath.replace(/^\/+/, '');
 
-        const fileName = path.basename(filePath);
+        // Fetch file content directly from GitHub API
+        const { data } = await octokit.rest.repos.getContent({
+            owner,
+            repo: repoName,
+            path: cleanFilePath,
+            ref: branch,
+        });
 
-        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        if (Array.isArray(data) || data.type !== 'file') {
+            return res.status(400).json({ error: 'Target path is not a file.' });
+        }
+
+        // GitHub returns files in base64
+        const fileBuffer = Buffer.from(data.content, 'base64');
+
+        res.setHeader('Content-Disposition', `attachment; filename="${data.name}"`);
         res.setHeader('Content-Type', 'application/octet-stream');
         return res.send(fileBuffer);
     } catch (err) {
         console.error('File download error:', err);
         return res.status(500).json({ error: 'Failed to retrieve file content' });
+    }
+};
+
+export const downloadRepoZip = async (req, res) => {
+    const { repo, ref } = req.query;
+
+    if (!repo) {
+        return res.status(400).json({ error: 'Repository name parameter is required.' });
+    }
+
+    try {
+        let owner = OWNER;
+        let repoName = repo;
+
+        if (repo.includes('/')) {
+            [owner, repoName] = repo.split('/');
+        }
+
+        // Download archive binary buffer from GitHub REST API
+        const response = await octokit.rest.repos.downloadZipballArchive({
+            owner,
+            repo: repoName,
+            ref: ref || 'main',
+        });
+
+        const buffer = Buffer.from(response.data);
+
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${repoName}-${ref || 'main'}.zip"`
+        );
+        return res.send(buffer);
+    } catch (err) {
+        console.error('Error fetching repo zip archive:', err);
+        return res.status(500).json({ error: 'Failed to download repository ZIP archive.' });
+    }
+};
+
+export const createCicdPr = async (req, res) => {
+    const { repo, filename, yamlContent, branchName, commitMessage, prTitle } = req.body;
+
+    if (!repo || !yamlContent || !filename || !branchName) {
+        return res.status(400).json({ error: 'Missing required parameters.' });
+    }
+
+    try {
+        let owner = OWNER;
+        let repoName = repo;
+        if (repo.includes('/')) {
+            [owner, repoName] = repo.split('/');
+        }
+
+        // 1. Get repository details to find default branch (e.g. main / master)
+        const { data: repoDetails } = await octokit.rest.repos.get({ owner, repo: repoName });
+        const defaultBranch = repoDetails.default_branch;
+
+        // 2. Fetch latest commit SHA from default branch
+        const { data: refData } = await octokit.rest.git.getRef({
+            owner,
+            repo: repoName,
+            ref: `heads/${defaultBranch}`,
+        });
+        const baseSha = refData.object.sha;
+
+        // 3. Create new target branch off default branch SHA
+        await octokit.rest.git.createRef({
+            owner,
+            repo: repoName,
+            ref: `refs/heads/${branchName}`,
+            sha: baseSha,
+        });
+
+        // 4. Commit workflow YML script inside .github/workflows/ folder
+        const targetFilePath = `.github/workflows/${filename}`;
+        const contentBase64 = Buffer.from(yamlContent).toString('base64');
+
+        await octokit.rest.repos.createOrUpdateFileContents({
+            owner,
+            repo: repoName,
+            path: targetFilePath,
+            message: commitMessage || `ci: add ${filename} workflow`,
+            content: contentBase64,
+            branch: branchName,
+        });
+
+        // 5. Open Pull Request to merge back into default branch
+        const { data: pr } = await octokit.rest.pulls.create({
+            owner,
+            repo: repoName,
+            title: prTitle || `Add ${filename} deployment workflow`,
+            head: branchName,
+            base: defaultBranch,
+            body: `Automated PR generated from CI/CD Setup wizard.\n\n**Added file:** \`${targetFilePath}\``,
+        });
+
+        return res.status(201).json({
+            success: true,
+            prNumber: pr.number,
+            prUrl: pr.html_url,
+            branch: branchName,
+        });
+
+    } catch (err) {
+        console.error('CI/CD PR Creation error:', err);
+        return res.status(err.status || 500).json({
+            error: err.message || 'Failed to create pull request for deployment script.',
+        });
+    }
+};
+
+// Helper to parse "owner/repo" or use default owner
+const parseRepo = (repoParam) => {
+    if (repoParam.includes('/')) {
+        const [owner, repo] = repoParam.split('/');
+        return { owner, repo };
+    }
+    return { owner: OWNER, repo: repoParam };
+};
+
+export const checkOrCreatePr = async (req, res) => {
+    const { repo: repoParam, head, base, title, body } = req.body;
+
+    if (!repoParam || !head || !base) {
+        return res.status(400).json({ error: 'Missing repo, head, or base branch.' });
+    }
+
+    if (head === base) {
+        return res.status(400).json({ error: 'Head and base branches cannot be identical.' });
+    }
+
+    const { owner, repo } = parseRepo(repoParam);
+
+    try {
+        // 1. Check if an open PR already exists for this head -> base combination
+        const { data: existingPrs } = await octokit.rest.pulls.list({
+            owner,
+            repo,
+            state: 'open',
+            head: `${owner}:${head}`,
+            base,
+        });
+
+        if (existingPrs.length > 0) {
+            const pr = existingPrs[0];
+            return res.status(200).json({
+                isExisting: true,
+                prNumber: pr.number,
+                prUrl: pr.html_url,
+                title: pr.title,
+                state: pr.state,
+                canMerge: pr.mergeable ?? true,
+            });
+        }
+
+        // 2. If no open PR exists, create a new Pull Request
+        const { data: newPr } = await octokit.rest.pulls.create({
+            owner,
+            repo,
+            title: title || `Merge ${head} into ${base}`,
+            head,
+            base,
+            body: body || `Automated Pull Request to merge \`${head}\` into \`${base}\`.`,
+        });
+
+        return res.status(201).json({
+            isExisting: false,
+            prNumber: newPr.number,
+            prUrl: newPr.html_url,
+            title: newPr.title,
+            state: newPr.state,
+            canMerge: true,
+        });
+    } catch (err) {
+        console.error('Error checking or creating PR:', err);
+        return res.status(err.status || 500).json({
+            error: err.message || 'Failed to check or create pull request.',
+        });
+    }
+};
+
+export const getRepoPullRequests = async (req, res) => {
+    const { repo: repoParam } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const state = req.query.state || 'open'; // 'open', 'closed', or 'all'
+
+    const { owner, repo } = parseRepo(repoParam);
+
+    try {
+        const { data: prs } = await octokit.rest.pulls.list({
+            owner,
+            repo,
+            state,
+            per_page: limit,
+            page,
+        });
+
+        return res.status(200).json({
+            prs: prs.map((pr) => ({
+                id: pr.id,
+                number: pr.number,
+                title: pr.title,
+                state: pr.state,
+                user: pr.user.login,
+                userAvatar: pr.user.avatar_url,
+                head: pr.head.ref,
+                base: pr.base.ref,
+                createdAt: pr.created_at,
+                htmlUrl: pr.html_url,
+                draft: pr.draft,
+            })),
+            page,
+            limit,
+            hasMore: prs.length === limit,
+        });
+    } catch (err) {
+        console.error('Error fetching PRs:', err);
+        return res.status(err.status || 500).json({ error: err.message });
+    }
+};
+
+export const getPullRequestDetails = async (req, res) => {
+    const { repo: repoParam, id: prNumber } = req.params;
+    const { owner, repo } = parseRepo(repoParam);
+
+    try {
+        const pull_number = parseInt(prNumber);
+
+        // Fetch PR details, files changed, and comments in parallel
+        const [prRes, filesRes, commentsRes] = await Promise.all([
+            octokit.rest.pulls.get({ owner, repo, pull_number }),
+            octokit.rest.pulls.listFiles({ owner, repo, pull_number }),
+            octokit.rest.issues.listComments({ owner, repo, issue_number: pull_number }),
+        ]);
+
+        const pr = prRes.data;
+
+        return res.status(200).json({
+            pr: {
+                number: pr.number,
+                title: pr.title,
+                body: pr.body,
+                state: pr.state,
+                merged: pr.merged,
+                mergeable: pr.mergeable,
+                mergeableState: pr.mergeable_state,
+                user: pr.user.login,
+                userAvatar: pr.user.avatar_url,
+                head: pr.head.ref,
+                base: pr.base.ref,
+                createdAt: pr.created_at,
+                additions: pr.additions,
+                deletions: pr.deletions,
+                changedFilesCount: pr.changed_files,
+            },
+            files: filesRes.data.map((f) => ({
+                filename: f.filename,
+                status: f.status, // added, modified, removed
+                additions: f.additions,
+                deletions: f.deletions,
+                patch: f.patch,
+            })),
+            comments: commentsRes.data.map((c) => ({
+                id: c.id,
+                user: c.user.login,
+                userAvatar: c.user.avatar_url,
+                body: c.body,
+                createdAt: c.created_at,
+            })),
+        });
+    } catch (err) {
+        console.error('Error fetching PR detail:', err);
+        return res.status(err.status || 500).json({ error: err.message });
+    }
+};
+
+/**
+ * POST /api/repo/:repo/pulls/:id/merge
+ * Merges a pull request given a merge method (merge, squash, rebase).
+ */
+export const mergePullRequest = async (req, res) => {
+    const { repo: repoParam, id: prNumber } = req.params;
+    const { mergeMethod = 'merge', commitTitle } = req.body;
+    const { owner, repo } = parseRepo(repoParam);
+
+    try {
+        const response = await octokit.rest.pulls.merge({
+            owner,
+            repo,
+            pull_number: parseInt(prNumber),
+            merge_method: mergeMethod, // 'merge', 'squash', or 'rebase'
+            commit_title: commitTitle,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: response.data.message,
+            sha: response.data.sha,
+        });
+    } catch (err) {
+        console.error('Error merging PR:', err);
+        return res.status(err.status || 500).json({ error: err.message });
     }
 };

@@ -1,7 +1,7 @@
 'use client';
 
 import { ChangeEvent } from 'react';
-import { ShieldCheck, GitBranch, Moon, Sun, Home, Link as LinkIcon, Users } from 'lucide-react';
+import { ShieldCheck, GitBranch, Moon, Sun, Home, Link as LinkIcon, Users, FolderGit2 } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useRepoStore, useUIStore } from '@/lib/store';
 
@@ -16,6 +16,7 @@ export default function Header() {
     { label: 'Webhooks', path: '/webhook-manager', icon: LinkIcon },
     { label: 'Contributors', path: '/contributers', icon: Users },
     { label: 'Add Contributors', path: '/contributers/add', icon: Users },
+    { label: 'Repositories', path: '/repo', icon: FolderGit2 },
   ];
 
   return (

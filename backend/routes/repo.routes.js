@@ -7,6 +7,12 @@ import {
     deleteBranchesBulk,
     getRepoDetails,
     downloadFile,
+    downloadRepoZip,
+    createCicdPr,
+    checkOrCreatePr,
+    getRepoPullRequests,
+    getPullRequestDetails,
+    mergePullRequest,
 } from "../controllers/repo.controller.js";
 import { getRepoContributors } from '../controllers/user.controller.js';
 
@@ -26,5 +32,11 @@ router.delete('/branch', deleteBranch);
 router.post('/branches/bulk-delete', deleteBranchesBulk);
 router.get('/details/:repoName', getRepoDetails);
 router.get('/file/download', downloadFile);
+router.get('/download-zip', downloadRepoZip);
+router.post('/cicd/create-pr', createCicdPr);
+router.post('/pr/check-or-create', checkOrCreatePr);
+router.get('/:repo/pulls', getRepoPullRequests);
+router.get('/:repo/pulls/:id', getPullRequestDetails);
+router.post('/:repo/pulls/:id/merge', mergePullRequest);
 
 export default router;
