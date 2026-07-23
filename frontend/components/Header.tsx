@@ -12,7 +12,7 @@ export default function Header() {
   const pathname = usePathname();
   const { repos, selectedRepo, setSelectedRepo, loading } = useRepoStore();
   const { theme, toggleTheme } = useUIStore();
-  const { user, logout, checkingAuth } = useUserStore();
+  const { user, logout } = useUserStore();
   const [isOpen, setIsOpen] = useState(false);
 
   const navItems = [
@@ -90,7 +90,7 @@ export default function Header() {
             {theme === 'light' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
           </button>
           <div>
-            <NavbarAuth user={user} logout={logout} checkingAuth={checkingAuth} isOpen={isOpen} setIsOpen={setIsOpen} />
+            <NavbarAuth user={user} logout={logout} isOpen={isOpen} setIsOpen={setIsOpen} />
           </div>
         </div>
 
@@ -99,20 +99,11 @@ export default function Header() {
   );
 }
 
-function NavbarAuth({ user, logout, checkingAuth, isOpen, setIsOpen }: any) {
+function NavbarAuth({ user, logout, isOpen, setIsOpen }: any) {
 
   // Extract email prefix (everything before '@')
   const emailPrefix = user?.email ? user.email.split('@')[0] : '';
   const initial = user?.name ? user.name.charAt(0).toUpperCase() : emailPrefix.charAt(0).toUpperCase() || 'U';
-
-  // 1. Loading state while Zustand checks localStorage auth status
-  if (checkingAuth) {
-    return (
-      <div className="flex items-center gap-2 text-slate-400 py-1.5 px-3">
-        <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
-      </div>
-    );
-  }
 
   // 2. LOGGED OUT STATE
   if (!user) {
@@ -144,11 +135,6 @@ function NavbarAuth({ user, logout, checkingAuth, isOpen, setIsOpen }: any) {
         <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-500 text-white flex items-center justify-center font-bold text-xs shadow-xs">
           {initial}
         </div>
-
-        {/* Email Prefix */}
-        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 max-w-[120px] truncate">
-          {emailPrefix}
-        </span>
 
         <ChevronDown
           className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''
