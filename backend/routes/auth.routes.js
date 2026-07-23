@@ -1,7 +1,10 @@
 import express from 'express';
-import { initiateGithubAuth, handleGithubCallback, getUserRepositories } from '../controllers/profile.controller.js';
+import { signup, login, initiateGithubAuth, handleGithubCallback, getUserRepositories } from '../controllers/auth.controller.js';
 
 const router = express.Router();
+
+router.post('/signup', signup);
+router.post('/login', login);
 
 // OAuth Trigger and Callback
 router.get('/github/connect', initiateGithubAuth);
