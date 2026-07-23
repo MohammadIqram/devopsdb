@@ -14,6 +14,7 @@ const wss = new WebSocketServer({ server });
 
 // import configs
 import { GITHUB_OWNER } from "./lib/github.js";
+import { connectDB } from "./lib/db.js";
 
 // import routes
 import repoRoutes from "./routes/repo.routes.js";
@@ -21,6 +22,7 @@ import bugRoutes from "./routes/bug.routes.js";
 import profileRoutes from "./routes/profile.routes.js";
 import settingsRoutes from "./routes/settings.routes.js";
 import userRoutes from "./routes/user.routes.js";
+import authRoutes from "./routes/auth.routes.js";
 
 app.use(cors({ origin: 'http://localhost:3000', credentials: true, }));
 app.use(express.json());
@@ -31,6 +33,7 @@ app.use("/api/bug", bugRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/auth", authRoutes);
 
 function broadcast(data) {
     wss.clients.forEach((client) => {
@@ -105,4 +108,6 @@ app.post('/api/webhook', (req, res) => {
     res.status(200).send('Event Received');
 });
 
+// establish db connection
+connectDB();
 server.listen(4000, () => console.log('Backend Engine running on http://localhost:4000'));

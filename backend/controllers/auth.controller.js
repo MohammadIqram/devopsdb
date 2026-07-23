@@ -1,9 +1,7 @@
-import axios from "axios";
 import { createOctokitForUser, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, FRONTEND_URL, BACKEND_URL } from '../lib/github.js';
 
 export async function initiateGithubAuth(req, res) {
-    const redirectUri = `${BACKEND_URL}/auth/github/callback`;
-    console.log('this is the redirect uri: ', redirectUri);
+    const redirectUri = `${BACKEND_URL}/api/auth/github/callback`;
     const scopes = ['repo', 'workflow', 'write:packages'].join(' ');
 
     const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(
@@ -17,7 +15,7 @@ export async function handleGithubCallback(req, res) {
     const { code, error } = req.query;
 
     if (error || !code) {
-        return res.redirect(`${FRONTEND_URL}/apps?error=access_denied`);
+        return res.redirect(`${FRONTEND_URL}/onboarding/app-selection?error=access_denied`);
     }
 
     try {
@@ -52,10 +50,10 @@ export async function handleGithubCallback(req, res) {
         // });
 
         // 4. Redirect back to Next.js frontend onboarding page
-        return res.redirect(`${FRONTEND_URL}/apps?status=github_connected`);
+        return res.redirect(`${FRONTEND_URL}/onboarding/app-selection?status=github_connected`);
     } catch (err) {
         console.error('GitHub Auth Error:', err);
-        return res.redirect(`${FRONTEND_URL}/apps?error=token_exchange_failed`);
+        return res.redirect(`${FRONTEND_URL}/onboarding/app-selection?error=token_exchange_failed`);
     }
 }
 
