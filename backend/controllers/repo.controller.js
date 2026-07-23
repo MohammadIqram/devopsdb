@@ -1,6 +1,5 @@
 import { octokit, GITHUB_OWNER as OWNER } from "../lib/github.js";
-import path from 'path';
-import simpleGit from 'simple-git';
+import _sodium from 'libsodium-wrappers';
 
 export const listJobs = async (req, res) => {
     const { repo } = req.query;
@@ -789,6 +788,127 @@ export const mergePullRequest = async (req, res) => {
         });
     } catch (err) {
         console.error('Error merging PR:', err);
+        return res.status(err.status || 500).json({ error: err.message });
+    }
+};
+
+export const createManualCicdPr = async (req, res) => {
+    const {
+        repo: repoParam,
+        workflowFilename = 'deploy.yml',
+        yamlContent,
+        targetBranch = 'ci/manual-setup',
+        commitMessage = 'ci: add custom workflow file',
+        secrets = [],
+    } = req.body;
+
+    if (!repoParam || !yamlContent) {
+        return res.status(400).json({ error: 'Missing required repository or YAML content.' });
+    }
+
+    const { owner, repo } = parseRepo(repoParam);
+
+    try {
+        // 1. Save and Encrypt Repository Secrets if provided
+        if (secrets.length > 0) {
+            // Ensure sodium WASM initialization completes
+            await _sodium.ready;
+            const sodium = _sodium;
+
+            // Get public key for secret encryption
+            const { data: publicKeyData } = await octokit.rest.actions.getRepoPublicKey({
+                owner,
+                repo,
+            });
+
+            for (const secret of secrets) {
+                if (!secret.key || !secret.value) continue;
+
+                // Encrypt secret value using libsodium
+                const binKey = sodium.from_base64(publicKeyData.key, sodium.base64_variants.ORIGINAL);
+                const binSecret = sodium.from_string(secret.value);
+                const encBytes = sodium.crypto_box_seal(binSecret, binKey);
+                const encryptedValue = sodium.to_base64(encBytes, sodium.base64_variants.ORIGINAL);
+
+                // Put secret into repository
+                await octokit.rest.actions.createOrUpdateRepoSecret({
+                    owner,
+                    repo,
+                    secret_name: secret.key.toUpperCase(),
+                    encrypted_value: encryptedValue,
+                    key_id: publicKeyData.key_id,
+                });
+            }
+        }
+
+        // 2. Get default branch SHA
+        const { data: repoInfo } = await octokit.rest.repos.get({ owner, repo });
+        const defaultBranch = repoInfo.default_branch;
+
+        const { data: refData } = await octokit.rest.git.getRef({
+            owner,
+            repo,
+            ref: `heads/${defaultBranch}`,
+        });
+
+        // 3. Create a new branch (or verify existing branch)
+        try {
+            await octokit.rest.git.createRef({
+                owner,
+                repo,
+                ref: `refs/heads/${targetBranch}`,
+                sha: refData.object.sha,
+            });
+        } catch (e) {
+            // Branch already exists; safely continue
+        }
+
+        // 4. Create or update the workflow file in the new branch
+        const filePath = `.github/workflows/${workflowFilename.replace(/\.yml$/i, '')}.yml`;
+
+        // Check if file already exists on targetBranch to prevent sha mismatch errors
+        let fileSha = undefined;
+        try {
+            const { data: existingFile } = await octokit.rest.repos.getContent({
+                owner,
+                repo,
+                path: filePath,
+                ref: targetBranch,
+            });
+            if (!Array.isArray(existingFile) && existingFile.sha) {
+                fileSha = existingFile.sha;
+            }
+        } catch (e) {
+            // File does not exist yet
+        }
+
+        await octokit.rest.repos.createOrUpdateFileContents({
+            owner,
+            repo,
+            path: filePath,
+            message: commitMessage,
+            content: Buffer.from(yamlContent).toString('base64'),
+            branch: targetBranch,
+            ...(fileSha && { sha: fileSha }), // Pass SHA if updating an existing file
+        });
+
+        // 5. Open Pull Request
+        const { data: pr } = await octokit.rest.pulls.create({
+            owner,
+            repo,
+            title: commitMessage,
+            head: targetBranch,
+            base: defaultBranch,
+            body: `Automated PR: Adds custom deployment workflow \`${filePath}\` with configured repository secrets.`,
+        });
+
+        return res.status(201).json({
+            success: true,
+            prNumber: pr.number,
+            prUrl: pr.html_url,
+        });
+    } catch (err) {
+        console.error('Error in manual CI/CD setup:', err);
         return res.status(err.status || 500).json({ error: err.message });
     }
 };

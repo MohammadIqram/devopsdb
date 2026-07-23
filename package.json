@@ -15,6 +15,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "libsodium-wrappers": "^0.8.4",
     "simple-git": "^3.36.0",
     "ws": "^8.19.0"
   },

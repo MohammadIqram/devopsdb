@@ -13,6 +13,7 @@ import {
     getRepoPullRequests,
     getPullRequestDetails,
     mergePullRequest,
+    createManualCicdPr,
 } from "../controllers/repo.controller.js";
 import { getRepoContributors } from '../controllers/user.controller.js';
 
@@ -38,5 +39,6 @@ router.post('/pr/check-or-create', checkOrCreatePr);
 router.get('/:repo/pulls', getRepoPullRequests);
 router.get('/:repo/pulls/:id', getPullRequestDetails);
 router.post('/:repo/pulls/:id/merge', mergePullRequest);
+router.post('/cicd/create-manual', createManualCicdPr)
 
 export default router;

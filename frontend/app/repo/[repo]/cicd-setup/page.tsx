@@ -11,6 +11,7 @@ import {
     CheckCircle2,
     AlertCircle,
     ExternalLink,
+    Sparkles,
 } from 'lucide-react';
 import { axiosInstance } from '@/lib/axios';
 
@@ -248,6 +249,26 @@ export default function CicdSetupPage({
                         </div>
                     </form>
                 )}
+
+                {/* Alternative flow banner inside main card footer */}
+                <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                    <div>
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                            Want to construct a pre-defined workflow instead?
+                        </h4>
+                        <p className="text-[11px] text-slate-500">
+                            Select a framework preset, customize directory paths, and configure repo secrets.
+                        </p>
+                    </div>
+
+                    <Link
+                        href={`/repo/${encodeURIComponent(repo)}/cicd-setup/manual`}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700 transition"
+                    >
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                        Create deployment from scratch
+                    </Link>
+                </div>
             </div>
         </div>
     );
