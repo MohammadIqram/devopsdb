@@ -1,5 +1,5 @@
 import express from 'express';
-import { signup, login, initiateGithubAuth, handleGithubCallback, getUserRepositories, logout } from '../controllers/auth.controller.js';
+import { signup, login, initiateGithubAuth, handleGithubCallback, getUserRepositories, logout, connectHostinger } from '../controllers/auth.controller.js';
 import { isLoggedIn, sessionMiddleware } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
@@ -13,6 +13,9 @@ router.get('/github/connect', sessionMiddleware, isLoggedIn, initiateGithubAuth)
 router.get('/github/callback', sessionMiddleware, isLoggedIn, handleGithubCallback);
 
 // GitHub API Data Actions
-router.get('/github/repositories', sessionMiddleware, getUserRepositories);
+router.get('/github/repositories', sessionMiddleware, isLoggedIn, getUserRepositories);
+
+// hostinger connect
+router.post('/hostinger-connect', sessionMiddleware, isLoggedIn, connectHostinger);
 
 export default router;

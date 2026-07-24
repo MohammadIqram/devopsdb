@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/user.model.js';
 import crypto from "crypto";
 import Session from "../models/session.model.js";
+import { ConnectedApp } from '../models/apps.model.js';
 
 const CONSENT_VERSION = "2026-06-17";
 const PHONE_CONSENT_VERSION = "2026-06-17";
@@ -364,5 +365,40 @@ export async function logout(req, res) {
             success: false,
             message: 'Server error during logout',
         });
+    }
+}
+
+export async function connectHostinger(req, res) {
+    try {
+        const { token } = req.body;
+        if (!token) {
+            return res.status(400).json({
+                success: false,
+                message: "Please provide a valid token.",
+            });
+        }
+
+        await ConnectedApp.create({
+            user: req.session.user.id,
+            accessToken: token,
+            provider: 'hostinger',
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Hostinger connected successfully",
+        })
+    } catch (error) {
+        console.error("Connect Hostinger Error:", error);
+        if (error.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                message: "token already saved in the database, with APP ID: HOSTINGER",
+            })
+        }
+        return res.status(500).json({
+            success: false,
+            message: "Server error during hostinger connection",
+        })
     }
 }
