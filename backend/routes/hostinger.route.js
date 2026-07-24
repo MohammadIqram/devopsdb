@@ -10,19 +10,20 @@ import {
     resetVpsPassword,
     getVpsHealthMetrics,
 } from '../controllers/hostinger.controller.js';
+import { isLoggedIn } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
-router.get('/projects', getHostingerProjects);
-router.get('/domains', getHostingerDomains);
-router.get('/vps', getHostingerVPS);
-router.get('/emails', getHostingerEmails);
-router.get('/dashboard-summary', getHostingerDashboardSummary);
+router.get('/projects', isLoggedIn, getHostingerProjects);
+router.get('/domains', isLoggedIn, getHostingerDomains);
+router.get('/vps', isLoggedIn, getHostingerVPS);
+router.get('/emails', isLoggedIn, getHostingerEmails);
+router.get('/dashboard-summary', isLoggedIn, getHostingerDashboardSummary);
 
 // vps routes
-router.get("/vps", getAllVps);
-router.get('/vps/:id', getVpsDetails);
-router.get('/vps/:id/health', getVpsHealthMetrics);
-router.post('/vps/:id/reset-password', resetVpsPassword);
+router.get("/vps", isLoggedIn, getAllVps);
+router.get('/vps/:id', isLoggedIn, getVpsDetails);
+router.get('/vps/:id/health', isLoggedIn, getVpsHealthMetrics);
+router.post('/vps/:id/reset-password', isLoggedIn, resetVpsPassword);
 
 export default router;
