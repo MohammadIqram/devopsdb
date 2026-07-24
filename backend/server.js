@@ -5,6 +5,7 @@ import { WebSocketServer } from 'ws';
 import http from "http";
 import cors from "cors";
 import dotenv from "dotenv";
+import cookieParser from "cookie-parser";
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ import authRoutes from "./routes/auth.routes.js";
 import hostingerRoutes from "./routes/hostinger.route.js";
 
 app.use(cors({ origin: 'http://localhost:3000', credentials: true, }));
+app.use(cookieParser());
 app.use(express.json());
 
 // use routes

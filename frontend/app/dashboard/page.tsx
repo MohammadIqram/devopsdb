@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, ChangeEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { axiosInstance } from '@/lib/axios';
@@ -114,8 +114,13 @@ interface BackendSummaryResponse {
 }
 
 export default function DevOpsDashboard() {
-    const { repos, selectedRepo } = useRepoStore();
+    const { repos, selectedRepo, fetchRepos, setSelectedRepo, loading } = useRepoStore();
     const [selectedBranch] = useState<string>('main');
+
+    // Fetch repos once on app startup
+    useEffect(() => {
+        fetchRepos();
+    }, [fetchRepos]);
 
     // DevOps dashboard states
     const [deployments, setDeployments] = useState<Deployment[]>([]);
@@ -474,6 +479,24 @@ export default function DevOpsDashboard() {
 
     return (
         <div className="min-h-screen py-4 px-1 sm:px-2 space-y-8">
+            {/* Repo Selector */}
+            <div className="relative flex items-center min-w-[200px]">
+                <GitBranch className="absolute left-3 w-3.5 h-3.5 text-indigo-500 pointer-events-none z-10" />
+                <select
+                    value={selectedRepo}
+                    onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedRepo(e.target.value)}
+                    disabled={loading}
+                    className="w-full pl-8 pr-8 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer disabled:opacity-50 appearance-none"
+                >
+                    {loading && <option>Loading...</option>}
+                    {!loading && repos.length === 0 && <option>No repositories</option>}
+                    {repos.map((r) => (
+                        <option key={r.id} value={r.name} className="bg-white dark:bg-slate-900">
+                            {r.name}
+                        </option>
+                    ))}
+                </select>
+            </div>
             {/* Top Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200 dark:border-slate-800">
                 <div>

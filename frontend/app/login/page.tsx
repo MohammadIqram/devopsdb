@@ -16,7 +16,7 @@ export default function LoginPage() {
         e.preventDefault();
         const success = await login(formData);
         if (success) {
-            router.push('/onboarding/app-selection');
+            router.push('/dashboard');
         }
     };
 

@@ -1,39 +1,30 @@
-const clearAuthCookie = (res) => {
-    res.clearCookie("devops_session", {
+import jwt from 'jsonwebtoken';
+import session from "express-session";
+import MongoStore from 'connect-mongo';
+
+const sessionMiddleware = session({
+    secret: process.env.JWT_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({
+        mongoUrl: process.env.MONGO_URI,
+        collectionName: 'auth',
+        ttl: 24 * 60 * 60
+    }),
+    cookie: {
+        maxAge: 1000 * 60 * 60 * 24,
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        path: "/",
-    });
-};
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax'
+    }
+});
 
 export const isLoggedIn = async (req, res, next) => {
-    try {
-        const token = req.cookies?.devops_session;
-
-        if (!token) {
-            return res.status(401).json({
-                success: false,
-                message: "You are not authorized. Please log in.",
-            });
-        }
-
-        const decoded = await decodeToken(token);
-
-        if (!decoded?.success || !decoded?.data) {
-            clearAuthCookie(res);
-            return res.status(401).json({
-                success: false,
-                message: "You don't have a valid session. Please log back in.",
-            });
-        }
-        req.user = decoded.data.payload;
-        next();
-    } catch (error) {
-        console.error("Auth Middleware Error:", error);
+    if (!req.session || !req.session.user) {
         return res.status(401).json({
             success: false,
-            message: "Session expired or invalid token. Please log back in.",
+            message: "Unauthorized: Please login in first",
+            code: "auth:authorized:no_auth",
         });
     }
 };

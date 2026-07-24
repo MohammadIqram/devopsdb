@@ -1,16 +1,15 @@
 'use client';
 
-import { ChangeEvent, useState } from 'react';
-import { ShieldCheck, GitBranch, Moon, Sun, Home, Link as LinkIcon, Users, FolderGit2, Loader2, LogIn, ChevronDown, UserIcon, Settings, LogOut } from 'lucide-react';
+import { useState } from 'react';
+import { ShieldCheck, Moon, Sun, Home, Link as LinkIcon, Users, FolderGit2, LogIn, ChevronDown, UserIcon, Settings, LogOut } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useRepoStore, useUIStore } from '@/lib/store';
+import { useUIStore } from '@/lib/store';
 import { useUserStore } from '@/stores/useUserStore';
 import Link from 'next/link';
 
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
-  const { repos, selectedRepo, setSelectedRepo, loading } = useRepoStore();
   const { theme, toggleTheme } = useUIStore();
   const { user, logout } = useUserStore();
   const [isOpen, setIsOpen] = useState(false);
@@ -41,44 +40,29 @@ export default function Header() {
         {/* Navigation & Controls */}
         <div className="flex items-center gap-4 flex-wrap">
           {/* Navigation Links */}
-          <nav className="flex gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-lg">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.path;
-              return (
-                <button
-                  key={item.path}
-                  onClick={() => router.push(item.path)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition cursor-pointer ${isActive
-                    ? (theme === 'dark' ? 'bg-slate-800 text-white' : 'bg-white text-indigo-600 shadow-sm')
-                    : (theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-950')
-                    }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {item.label}
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* Repo Selector */}
-          <div className="relative flex items-center min-w-[200px]">
-            <GitBranch className="absolute left-3 w-3.5 h-3.5 text-indigo-500 pointer-events-none z-10" />
-            <select
-              value={selectedRepo}
-              onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedRepo(e.target.value)}
-              disabled={loading}
-              className="w-full pl-8 pr-8 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer disabled:opacity-50 appearance-none"
-            >
-              {loading && <option>Loading...</option>}
-              {!loading && repos.length === 0 && <option>No repositories</option>}
-              {repos.map((r) => (
-                <option key={r.id} value={r.name} className="bg-white dark:bg-slate-900">
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {
+            user && (
+              <nav className="flex gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-lg">
+                {navItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname === item.path;
+                  return (
+                    <button
+                      key={item.path}
+                      onClick={() => router.push(item.path)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition cursor-pointer ${isActive
+                        ? (theme === 'dark' ? 'bg-slate-800 text-white' : 'bg-white text-indigo-600 shadow-sm')
+                        : (theme === 'dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-950')
+                        }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </nav>
+            )
+          }
 
           {/* Light/Dark Toggle */}
           <button

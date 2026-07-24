@@ -11,6 +11,7 @@ interface UserState {
     checkingAuth: boolean;
 
     // Actions
+    setUser: (user: User | null) => void;
     signup: (credentials: SignupCredentials) => Promise<any>;
     login: (credentials: LoginCredentials) => Promise<boolean>;
     logout: () => void;
@@ -26,16 +27,11 @@ export const useUserStore = create<UserState>()(
             loading: false,
             checkingAuth: true,
 
+            setUser: (user) => set({ user }),
+
             // --- SIGNUP ---
-            signup: async ({ name, email, password, confirmPassword }) => {
+            signup: async ({ name, email, password }) => {
                 set({ loading: true });
-
-                if (password !== confirmPassword) {
-                    set({ loading: false });
-                    toast.error('Passwords do not match');
-                    return false;
-                }
-
                 try {
                     await axios.post<AuthResponse>('/auth/signup', { name, email, password });
                     toast.success('Account created successfully!');
