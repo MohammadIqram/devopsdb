@@ -23,6 +23,7 @@ import profileRoutes from "./routes/profile.routes.js";
 import settingsRoutes from "./routes/settings.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import authRoutes from "./routes/auth.routes.js";
+import hostingerRoutes from "./routes/hostinger.route.js";
 
 app.use(cors({ origin: 'http://localhost:3000', credentials: true, }));
 app.use(express.json());
@@ -34,6 +35,7 @@ app.use("/api/profile", profileRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/hostinger", hostingerRoutes)
 
 function broadcast(data) {
     wss.clients.forEach((client) => {
