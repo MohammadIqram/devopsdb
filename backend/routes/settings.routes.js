@@ -1,10 +1,10 @@
 import express from 'express';
 import { getSettings, updateSettings } from '../controllers/settings.controller.js';
-import { isLoggedIn } from '../middlewares/auth.middleware.js';
+import { isLoggedIn, sessionMiddleware } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
 
-router.get('/', isLoggedIn, getSettings);
-router.put('/', isLoggedIn, updateSettings);
+router.get('/', sessionMiddleware, isLoggedIn, getSettings);
+router.put('/', sessionMiddleware, isLoggedIn, updateSettings);
 
 export default router;

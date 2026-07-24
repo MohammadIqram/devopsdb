@@ -16,7 +16,7 @@ axiosInstance.interceptors.response.use(
     async (error) => {
         if (
             error.response?.status === 401 &&
-            error.response?.data?.code === 'auth:authorized:no_auths'
+            error.response?.data?.code === 'auth:authorized:no_auth'
         ) {
             useUserStore.getState().setUser(null);
             if (typeof window !== "undefined") {

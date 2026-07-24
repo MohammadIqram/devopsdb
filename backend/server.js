@@ -25,10 +25,12 @@ import settingsRoutes from "./routes/settings.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import hostingerRoutes from "./routes/hostinger.route.js";
+import { sessionMiddleware } from "./middlewares/auth.middleware.js";
 
 app.use(cors({ origin: 'http://localhost:3000', credentials: true, }));
 app.use(cookieParser());
 app.use(express.json());
+app.use(sessionMiddleware);
 
 // use routes
 app.use("/api/repo", repoRoutes);

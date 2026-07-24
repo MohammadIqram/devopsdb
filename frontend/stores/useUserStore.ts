@@ -6,7 +6,6 @@ import { User, SignupCredentials, LoginCredentials, AuthResponse } from '@/types
 
 interface UserState {
     user: User | null;
-    token: string | null;
     loading: boolean;
     checkingAuth: boolean;
 
@@ -15,7 +14,6 @@ interface UserState {
     signup: (credentials: SignupCredentials) => Promise<any>;
     login: (credentials: LoginCredentials) => Promise<boolean>;
     logout: () => void;
-    checkAuth: () => Promise<void>;
     addBillingAddress: (form: Record<string, any>) => Promise<void>;
 }
 
@@ -53,9 +51,9 @@ export const useUserStore = create<UserState>()(
 
                 try {
                     const res = await axios.post<AuthResponse>('/auth/login', { email, password });
-                    const { user, token } = res.data;
+                    const { user } = res.data;
 
-                    set({ user, token, loading: false });
+                    set({ user, loading: false });
                     toast.success('Logged in successfully!');
                     return true;
                 } catch (error: any) {
@@ -66,27 +64,12 @@ export const useUserStore = create<UserState>()(
             },
 
             // --- LOGOUT ---
-            logout: () => {
-                set({ user: null, token: null });
-                toast.success('Logged out');
-            },
-
-            // --- CHECK AUTH PROFILE ---
-            checkAuth: async () => {
-                const { token } = get();
-
-                if (!token) {
-                    set({ checkingAuth: false, user: null });
-                    return;
-                }
-
-                set({ checkingAuth: true });
+            logout: async () => {
                 try {
-                    const response = await axios.get<{ user: User }>('/auth/profile');
-                    set({ user: response.data.user, checkingAuth: false });
-                } catch (error: any) {
-                    console.error('Auth check failed:', error.message);
-                    set({ checkingAuth: false, user: null, token: null });
+                    const res = await axios.post('/auth/logout');
+                    set({ user: null });
+                } catch {
+                    toast.error("Could not logout user. Try again.");
                 }
             },
 
@@ -113,7 +96,6 @@ export const useUserStore = create<UserState>()(
             storage: createJSONStorage(() => localStorage),
             partialize: (state) => ({
                 user: state.user,
-                token: state.token,
             }),
         }
     )

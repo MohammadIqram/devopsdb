@@ -2,6 +2,7 @@ import { createOctokitForUser, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, FRONTEND_
 import jwt from 'jsonwebtoken';
 import User from '../models/user.model.js';
 import crypto from "crypto";
+import Session from "../models/session.model.js";
 
 const CONSENT_VERSION = "2026-06-17";
 const PHONE_CONSENT_VERSION = "2026-06-17";
@@ -219,23 +220,28 @@ export async function login(req, res) {
         } catch (sessionError) {
             console.error("Failed to create session audit record:", sessionError.message);
         }
-        const token = generateToken(user._id, user.email, sessionId);
-        res.cookie("devops_session", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
-            maxAge: 30 * 24 * 60 * 60 * 1000,
-        });
+        req.session.user = {
+            id: user._id,
+            email: user.email,
+            sessionId: sessionId,
+        };
 
-        return res.status(200).json({
-            success: true,
-            message: 'Logged in successfully',
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-            },
-        });
+        req.session.save((err) => {
+            if (err) {
+                console.log('error when saving the session: ', err.message);
+                return res.status(500).json({ success: false, message: 'Server error' });
+            }
+            return res.status(200).json({
+                success: true,
+                message: 'Logged in successfully',
+                user: {
+                    id: user._id,
+                    name: user.name,
+                    email: user.email,
+                },
+            });
+        })
+
     } catch (error) {
         console.error('Login Error:', error);
         return res.status(500).json({ success: false, message: 'Server error during login' });
@@ -320,5 +326,43 @@ export async function getUserRepositories(req, res) {
     } catch (error) {
         console.error('Error fetching repositories:', error);
         return res.status(500).json({ success: false, message: error.message });
+    }
+}
+
+export async function logout(req, res) {
+    try {
+        if (!req.session) {
+            return res.status(200).json({
+                success: true,
+                message: 'Already logged out',
+            });
+        }
+        req.session.destroy((err) => {
+            if (err) {
+                console.error('Logout / Session Destroy Error:', err);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Could not log out, please try again.',
+                });
+            }
+
+            res.clearCookie('connect.sid', {
+                path: '/',
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax',
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: 'Logged out successfully',
+            });
+        });
+    } catch (error) {
+        console.error('Logout Error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Server error during logout',
+        });
     }
 }

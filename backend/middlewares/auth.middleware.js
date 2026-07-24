@@ -1,8 +1,7 @@
-import jwt from 'jsonwebtoken';
 import session from "express-session";
 import MongoStore from 'connect-mongo';
 
-const sessionMiddleware = session({
+export const sessionMiddleware = session({
     secret: process.env.JWT_SECRET,
     resave: false,
     saveUninitialized: false,
@@ -27,6 +26,7 @@ export const isLoggedIn = async (req, res, next) => {
             code: "auth:authorized:no_auth",
         });
     }
+    next();
 };
 
 export const isAdmin = async (req, res, next) => {
