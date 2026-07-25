@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, ChangeEvent } from 'react';
+import { useState, useEffect, useMemo, ChangeEvent } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { axiosInstance } from '@/lib/axios';
@@ -113,6 +114,32 @@ interface BackendSummaryResponse {
     };
 }
 
+// ==========================================
+// QUERY KEY FACTORIES
+// ==========================================
+const queryKeys = {
+    hostingerSummary: ['hostinger', 'dashboard-summary'] as const,
+    devopsData: (repo: string) => ['devops', repo] as const,
+};
+
+// ==========================================
+// FETCHER FUNCTIONS
+// ==========================================
+const fetchHostingerSummary = async (): Promise<BackendSummaryResponse> => {
+    const response = await axiosInstance.get<BackendSummaryResponse>(
+        '/hostinger/dashboard-summary'
+    );
+    return response.data;
+};
+
+const fetchDevOpsData = async (repo: string): Promise<{ deployments: Deployment[]; bugs: Bug[] }> => {
+    const [deployRes, bugRes] = await Promise.all([
+        axiosInstance.get<Deployment[]>('/repo/deployments', { params: { repo } }),
+        axiosInstance.get<Bug[]>('/bug', { params: { repo } }),
+    ]);
+    return { deployments: deployRes.data, bugs: bugRes.data };
+};
+
 export default function DevOpsDashboard() {
     const { repos, selectedRepo, fetchRepos, setSelectedRepo, loading } = useRepoStore();
     const [selectedBranch] = useState<string>('main');
@@ -122,100 +149,69 @@ export default function DevOpsDashboard() {
         fetchRepos();
     }, [fetchRepos]);
 
-    // DevOps dashboard states
-    const [deployments, setDeployments] = useState<Deployment[]>([]);
-    const [bugs, setBugs] = useState<Bug[]>([]);
-    const [devopsLoading, setDevopsLoading] = useState<boolean>(false);
-    const [deploying, setDeploying] = useState<boolean>(false);
+    // ==========================================
+    // REACT QUERY — Hostinger Summary
+    // ==========================================
+    const {
+        data: hostingerData,
+        isLoading: hostingerLoading,
+        isRefetching: hostingerRefreshing,
+        refetch: refetchHostinger,
+    } = useQuery({
+        queryKey: queryKeys.hostingerSummary,
+        queryFn: fetchHostingerSummary,
+        select: (data) =>
+            data?.success && data?.summary
+                ? {
+                      projectsCount: data.summary.projectsCount || 0,
+                      domainsCount: data.summary.domainsCount || 0,
+                      vpsCount: data.summary.vpsCount || 0,
+                      emailsCount: data.summary.emailsCount || 0,
+                      databasesCount: 0,
+                  }
+                : { projectsCount: 0, domainsCount: 0, vpsCount: 0, emailsCount: 0, databasesCount: 0 },
+    });
 
-    // Terminal logs state
-    const [activeLog, setActiveLog] = useState<ActiveLog | null>(null);
-    const [logLoading, setLogLoading] = useState<boolean>(false);
-
-    // Hostinger dashboard states
-    const [searchQuery, setSearchQuery] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState<string>('all');
-    const [hostingerLoading, setHostingerLoading] = useState<boolean>(true);
-    const [hostingerRefreshing, setHostingerRefreshing] = useState<boolean>(false);
-    const [isManualRefreshing, setIsManualRefreshing] = useState<boolean>(false);
-
-    // Live counts state from Express Backend
-    const [counts, setCounts] = useState({
+    const counts = hostingerData ?? {
         projectsCount: 0,
         domainsCount: 0,
         vpsCount: 0,
         emailsCount: 0,
         databasesCount: 0,
+    };
+
+    // ==========================================
+    // REACT QUERY — DevOps (deployments + bugs)
+    // ==========================================
+    const {
+        data: devopsData,
+        isLoading: devopsLoading,
+        isRefetching: devopsRefreshing,
+        refetch: refetchDevOps,
+    } = useQuery({
+        queryKey: queryKeys.devopsData(selectedRepo ?? ''),
+        queryFn: () => fetchDevOpsData(selectedRepo!),
+        enabled: !!selectedRepo,
     });
+
+    const deployments: Deployment[] = devopsData?.deployments ?? [];
+    const bugs: Bug[] = devopsData?.bugs ?? [];
+
+    const isManualRefreshing = hostingerRefreshing || devopsRefreshing;
+
+    // Terminal logs state
+    const [activeLog, setActiveLog] = useState<ActiveLog | null>(null);
+    const [logLoading, setLogLoading] = useState<boolean>(false);
+
+    // Hostinger service card UI filters
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+    const [deploying, setDeploying] = useState<boolean>(false);
 
     const router = useRouter();
 
-    // --- 1. Fetch Hostinger API Data ---
-    const fetchHostingerData = useCallback(async (isManual = false) => {
-        if (isManual) setHostingerRefreshing(true);
-        else setHostingerLoading(true);
-
-        try {
-            const response = await axiosInstance.get<BackendSummaryResponse>(
-                '/hostinger/dashboard-summary'
-            );
-
-            if (response.data?.success && response.data?.summary) {
-                setCounts({
-                    projectsCount: response.data.summary.projectsCount || 0,
-                    domainsCount: response.data.summary.domainsCount || 0,
-                    vpsCount: response.data.summary.vpsCount || 0,
-                    emailsCount: response.data.summary.emailsCount || 0,
-                    databasesCount: 0,
-                });
-            }
-        } catch (error: any) {
-            console.error('Failed to sync with Hostinger API:', error);
-            toast.error(error.response?.data?.message || 'Failed to sync with Hostinger API');
-        } finally {
-            setHostingerLoading(false);
-            setHostingerRefreshing(false);
-        }
-    }, []);
-
-    // --- 2. Fetch DevOps API Data ---
-    const fetchDevOpsData = useCallback(async (isManual = false) => {
-        if (!selectedRepo) return;
-        if (isManual) setIsManualRefreshing(true);
-        else setDevopsLoading(true);
-
-        try {
-            const [deployRes, bugRes] = await Promise.all([
-                axiosInstance.get<Deployment[]>('/repo/deployments', {
-                    params: { repo: selectedRepo },
-                }),
-                axiosInstance.get<Bug[]>('/bug', {
-                    params: { repo: selectedRepo },
-                }),
-            ]);
-
-            setDeployments(deployRes.data);
-            setBugs(bugRes.data);
-        } catch (err: any) {
-            console.error('Failed to fetch DevOps dashboard data:', err);
-            toast.error('Failed to sync with DevOps API');
-        } finally {
-            setDevopsLoading(false);
-            setIsManualRefreshing(false);
-        }
-    }, [selectedRepo]);
-
-    // Load Hostinger data on mount
-    useEffect(() => {
-        fetchHostingerData();
-    }, [fetchHostingerData]);
-
-    // Load DevOps data when selectedRepo changes
-    useEffect(() => {
-        fetchDevOpsData();
-    }, [fetchDevOpsData, selectedRepo]);
-
-    // --- 3. WebSocket updates for DevOps repository events ---
+    // --- WebSocket updates for DevOps repository events ---
     useEffect(() => {
         if (!selectedRepo) return;
 
@@ -225,7 +221,7 @@ export default function DevOpsDashboard() {
             try {
                 const data: WebSocketEvent = JSON.parse(event.data);
                 if (data.type === 'GITHUB_EVENT' && data.repo === selectedRepo) {
-                    fetchDevOpsData();
+                    refetchDevOps();
                 }
             } catch (err) {
                 console.error('WebSocket parsing error:', err);
@@ -233,21 +229,15 @@ export default function DevOpsDashboard() {
         };
 
         return () => ws.close();
-    }, [selectedRepo, fetchDevOpsData]);
+    }, [selectedRepo, refetchDevOps]);
 
-    // --- 4. Synchronize All Dashboards ---
+    // --- Synchronize All Dashboards (manual) ---
     const handleSyncAll = async () => {
-        setIsManualRefreshing(true);
         try {
-            await Promise.all([
-                fetchHostingerData(true),
-                fetchDevOpsData(true)
-            ]);
+            await Promise.all([refetchHostinger(), refetchDevOps()]);
             toast.success('Console metrics synchronized!');
         } catch (error) {
             console.error('Sync failed:', error);
-        } finally {
-            setIsManualRefreshing(false);
         }
     };
 
@@ -265,7 +255,7 @@ export default function DevOpsDashboard() {
             });
 
             toast.success(`Deployment triggered for ${selectedRepo} (${env}) on ${selectedBranch}!`);
-            setTimeout(fetchDevOpsData, 2000);
+            setTimeout(refetchDevOps, 2000);
         } catch (err) {
             toast.error('Failed to trigger deployment');
         } finally {

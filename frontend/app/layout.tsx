@@ -4,6 +4,7 @@ import "./globals.css";
 import ClientLayout from "@/components/ClientLayout";
 import { Toaster } from "react-hot-toast";
 import AuthProvider from "@/components/AuthProvider";
+import QueryProvider from "@/components/QueryProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,17 +33,19 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <AuthProvider>
-          <ClientLayout>{children}</ClientLayout>
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              className: 'text-sm font-medium',
-              style: {
-                background: '#fdfdfdff',
-                color: '#1f1d1dff',
-              }
-            }}
-          />
+          <QueryProvider>
+            <ClientLayout>{children}</ClientLayout>
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                className: 'text-sm font-medium',
+                style: {
+                  background: '#fdfdfdff',
+                  color: '#1f1d1dff',
+                }
+              }}
+            />
+          </QueryProvider>
         </AuthProvider>
       </body>
     </html>
